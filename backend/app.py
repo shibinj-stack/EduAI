@@ -103,15 +103,35 @@ def solve_image():
 @app.post("/pdf-pack")
 @require_auth
 def pdf_pack():
-    f = request.files.get("pdf")
-    if not f: return {"error": "no pdf"}, 400
-    reader = PyPDF2.PdfReader(io.BytesIO(f.read()))
-    text = "\n".join((p.extract_text() or "") for p in reader.pages)[:30000]
-    summary = ai_service.summarize(text)
-    cards = ai_service.generate_flashcards(text, 8)
-    quiz = ai_service.generate_quiz(text[:2000], 5)
-    fs.increment_stat(g.uid, "pdfs_uploaded")
-    return jsonify({"summary": summary, "flashcards": cards.get("cards", []), "quiz": quiz.get("questions", [])})
+    try:
+        f = request.files.get("pdf")
+
+        if not f:
+            return {"error": "no pdf"}, 400
+
+        reader = PyPDF2.PdfReader(io.BytesIO(f.read()))
+
+        text = "\n".join(
+            (p.extract_text() or "")
+            for p in reader.pages
+        )[:30000]
+
+        summary = ai_service.summarize(text)
+        cards = ai_service.generate_flashcards(text, 8)
+        quiz = ai_service.generate_quiz(text[:2000], 5)
+
+        fs.increment_stat(g.uid, "pdfs_uploaded")
+
+        return jsonify({
+            "summary": summary,
+            "flashcards": cards.get("cards", []),
+            "quiz": quiz.get("questions", [])
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {"error": str(e)}, 500
 
 # ---------- Voice ----------
 @app.post("/voice")
