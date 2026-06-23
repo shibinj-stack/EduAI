@@ -12,14 +12,13 @@ return genai.GenerativeModel(name)
 
 def chunk_text(text, chunk_size=4000):
 return [
-text[i:i + chunk_size]
+text[i + chunk_size]
 for i in range(0, len(text), chunk_size)
 ]
 
 def chat(prompt, history=None, system=None):
 m = _model()
 
-```
 msgs = []
 
 if system:
@@ -42,7 +41,6 @@ msgs.append({
 r = m.generate_content(msgs)
 
 return r.text or ""
-```
 
 def summarize(text):
 return _model().generate_content(
@@ -52,7 +50,6 @@ f"Summarize concisely with bullet points and key concepts:\n\n{text}"
 def summarize_large_text(text):
 chunks = chunk_text(text, 4000)
 
-```
 summaries = []
 
 for i, chunk in enumerate(chunks):
@@ -68,7 +65,6 @@ combined = "\n".join(summaries)
 
 return summarize(
     f"""
-```
 
 Create one final study guide from these summaries.
 
@@ -96,7 +92,6 @@ Return ONLY valid JSON:
 }}
 """
 
-```
 r = _model().generate_content(p).text
 
 r = r.strip().strip("`")
@@ -110,7 +105,6 @@ except Exception:
     start = r.find("{")
     end = r.rfind("}") + 1
     return json.loads(r[start:end])
-```
 
 def generate_flashcards(notes, num=10):
 p = f"""
@@ -132,7 +126,6 @@ Notes:
 {notes}
 """
 
-```
 r = _model().generate_content(p).text
 
 r = r.strip().strip("`")
@@ -146,7 +139,6 @@ except Exception:
     start = r.find("{")
     end = r.rfind("}") + 1
     return json.loads(r[start:end])
-```
 
 def study_plan(subjects, exam_date):
 return _model().generate_content(
@@ -166,7 +158,6 @@ Use markdown tables.
 def solve_image(image_bytes, question_hint=""):
 img = Image.open(io.BytesIO(image_bytes))
 
-```
 prompt = (
     question_hint
     or "Solve the question in this image. Provide step-by-step explanation and final answer."
@@ -175,7 +166,6 @@ prompt = (
 return _model(MODEL_VISION).generate_content(
     [prompt, img]
 ).text or ""
-```
 
 def voice_chat(prompt, language="en-US"):
 sys = f"Respond in language code {language}. Keep replies concise and spoken-friendly."
