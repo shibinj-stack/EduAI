@@ -4,8 +4,8 @@ from PIL import Image
 import io
 
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-MODEL_TEXT = "gemini-1.5-flash"
-MODEL_VISION = "gemini-1.5-flash"
+MODEL_TEXT = "gemini-2.5-flash"
+MODEL_VISION = "gemini-2.5-flash"
 
 def _model(name=MODEL_TEXT):
     return genai.GenerativeModel(name)
