@@ -103,35 +103,39 @@ def solve_image():
 @app.post("/pdf-pack")
 @require_auth
 def pdf_pack():
-    try:
-        f = request.files.get("pdf")
+try:
+f = request.files.get("pdf")
 
-        if not f:
-            return {"error": "no pdf"}, 400
+    if not f:
+        return {"error": "No PDF uploaded"}, 400
 
-        reader = PyPDF2.PdfReader(io.BytesIO(f.read()))
+    reader = PyPDF2.PdfReader(io.BytesIO(f.read()))
 
-        text = "\n".join(
-            (p.extract_text() or "")
-            for p in reader.pages
-        )[:30000]
+    text = "\n".join(
+        (p.extract_text() or "")
+        for p in reader.pages[:100]
+    )
 
-        summary = ai_service.summarize(text)
-        cards = ai_service.generate_flashcards(text, 8)
-        quiz = ai_service.generate_quiz(text[:2000], 5)
+    text = text[:15000]
 
-        fs.increment_stat(g.uid, "pdfs_uploaded")
+    summary = ai_service.summarize_large_text(text)
 
-        return jsonify({
-            "summary": summary,
-            "flashcards": cards.get("cards", []),
-            "quiz": quiz.get("questions", [])
-        })
+    cards = ai_service.generate_flashcards(summary, 8)
 
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return {"error": str(e)}, 500
+    quiz = ai_service.generate_quiz(summary, 5)
+
+    fs.increment_stat(g.uid, "pdfs_uploaded")
+
+    return jsonify({
+        "summary": summary,
+        "flashcards": cards.get("cards", []),
+        "quiz": quiz.get("questions", [])
+    })
+
+except Exception as e:
+    import traceback
+    traceback.print_exc()
+    return jsonify({"error": str(e)}), 500
 
 # ---------- Voice ----------
 @app.post("/voice")
