@@ -1,4 +1,6 @@
-import os, json, io
+import os
+import json
+import io
 import google.generativeai as genai
 from PIL import Image
 
@@ -7,166 +9,167 @@ genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 MODEL_TEXT = "gemini-2.5-flash"
 MODEL_VISION = "gemini-2.5-flash"
 
+
 def _model(name=MODEL_TEXT):
-return genai.GenerativeModel(name)
+    return genai.GenerativeModel(name)
+
 
 def chunk_text(text, chunk_size=4000):
-return [
-text[i + chunk_size]
-for i in range(0, len(text), chunk_size)
-]
+    return [
+        text[i:i + chunk_size]
+        for i in range(0, len(text), chunk_size)
+    ]
+
 
 def chat(prompt, history=None, system=None):
-m = _model()
+    m = _model()
+    msgs = []
 
-msgs = []
+    if system:
+        msgs.append({
+            "role": "user",
+            "parts": [system]
+        })
 
-if system:
+    for h in (history or []):
+        msgs.append({
+            "role": "user" if h["role"] == "user" else "model",
+            "parts": [h["content"]]
+        })
+
     msgs.append({
         "role": "user",
-        "parts": [system]
+        "parts": [prompt]
     })
 
-for h in (history or []):
-    msgs.append({
-        "role": "user" if h["role"] == "user" else "model",
-        "parts": [h["content"]]
-    })
+    r = m.generate_content(msgs)
+    return r.text or ""
 
-msgs.append({
-    "role": "user",
-    "parts": [prompt]
-})
-
-r = m.generate_content(msgs)
-
-return r.text or ""
 
 def summarize(text):
-return _model().generate_content(
-f"Summarize concisely with bullet points and key concepts:\n\n{text}"
-).text or ""
+    r = _model().generate_content(
+        f"Summarize concisely with bullet points and key concepts:\n\n{text}"
+    )
+    return r.text or ""
+
 
 def summarize_large_text(text):
-chunks = chunk_text(text, 4000)
+    chunks = chunk_text(text, 4000)
+    summaries = []
 
-summaries = []
+    for i, chunk in enumerate(chunks):
+        print(f"Processing chunk {i + 1}/{len(chunks)}")
+        try:
+            result = summarize(chunk)
+            if result:
+                summaries.append(result)
+        except Exception as e:
+            print("Chunk error:", e)
 
-for i, chunk in enumerate(chunks):
-    print(f"Processing chunk {i+1}/{len(chunks)}")
+    if not summaries:
+        return "Could not generate summary for this PDF."
 
-    try:
-        result = summarize(chunk)
-        summaries.append(result)
-    except Exception as e:
-        print("Chunk error:", e)
+    # If only one chunk, avoid an extra Gemini call
+    if len(summaries) == 1:
+        return summaries[0]
 
-combined = "\n".join(summaries)
+    combined = "\n".join(summaries)
 
-return summarize(
-    f"""
+    final_summary = summarize(
+        f"""
+Create one final clean study summary from these chunk summaries.
+Keep it concise, student-friendly, and organized with bullet points.
 
-Create one final study guide from these summaries.
-
+Chunk summaries:
 {combined}
 """
-)
+    )
+
+    return final_summary or combined
+
+
+def _safe_json_parse(text):
+    text = (text or "").strip().strip("`")
+
+    if text.startswith("json"):
+        text = text[4:].strip()
+
+    try:
+        return json.loads(text)
+    except Exception:
+        start = text.find("{")
+        end = text.rfind("}") + 1
+        if start != -1 and end != 0:
+            return json.loads(text[start:end])
+        raise ValueError("Model did not return valid JSON.")
+
 
 def generate_quiz(topic, num=5):
-p = f"""
-Create {num} multiple-choice questions on:
+    p = f"""
+Create {num} multiple-choice questions on the following topic/content:
 
 {topic}
 
-Return ONLY valid JSON:
+Return ONLY valid JSON in this exact format:
 
 {{
-"questions": [
-{{
-"q": "...",
-"options": ["a","b","c","d"],
-"answer": 0,
-"explanation": "..."
-}}
-]
+  "questions": [
+    {{
+      "q": "Question text",
+      "options": ["Option A", "Option B", "Option C", "Option D"],
+      "answer": 0,
+      "explanation": "Why this answer is correct"
+    }}
+  ]
 }}
 """
+    r = _model().generate_content(p)
+    return _safe_json_parse(r.text if r else "")
 
-r = _model().generate_content(p).text
-
-r = r.strip().strip("`")
-
-if r.startswith("json"):
-    r = r[4:].strip()
-
-try:
-    return json.loads(r)
-except Exception:
-    start = r.find("{")
-    end = r.rfind("}") + 1
-    return json.loads(r[start:end])
 
 def generate_flashcards(notes, num=10):
-p = f"""
-Generate {num} flashcards.
+    p = f"""
+Generate {num} flashcards from these notes.
 
-Return ONLY JSON:
+Return ONLY valid JSON in this exact format:
 
 {{
-"cards": [
-{{
-"front": "...",
-"back": "..."
-}}
-]
+  "cards": [
+    {{
+      "front": "Question / Term",
+      "back": "Answer / Explanation"
+    }}
+  ]
 }}
 
 Notes:
-
 {notes}
 """
+    r = _model().generate_content(p)
+    return _safe_json_parse(r.text if r else "")
 
-r = _model().generate_content(p).text
-
-r = r.strip().strip("`")
-
-if r.startswith("json"):
-    r = r[4:].strip()
-
-try:
-    return json.loads(r)
-except Exception:
-    start = r.find("{")
-    end = r.rfind("}") + 1
-    return json.loads(r[start:end])
 
 def study_plan(subjects, exam_date):
-return _model().generate_content(
-f"""
-Create a personalized daily study plan.
+    r = _model().generate_content(
+        f"""
+Create a personalized daily study plan and revision timetable.
 
-Subjects:
-{subjects}
+Subjects: {subjects}
+Exam date: {exam_date}
 
-Exam Date:
-{exam_date}
-
-Use markdown tables.
+Use markdown tables where helpful.
 """
-).text or ""
+    )
+    return r.text or ""
+
 
 def solve_image(image_bytes, question_hint=""):
-img = Image.open(io.BytesIO(image_bytes))
+    img = Image.open(io.BytesIO(image_bytes))
+    prompt = question_hint or "Solve the question in this image. Provide a step-by-step explanation and final answer."
+    r = _model(MODEL_VISION).generate_content([prompt, img])
+    return r.text or ""
 
-prompt = (
-    question_hint
-    or "Solve the question in this image. Provide step-by-step explanation and final answer."
-)
-
-return _model(MODEL_VISION).generate_content(
-    [prompt, img]
-).text or ""
 
 def voice_chat(prompt, language="en-US"):
-sys = f"Respond in language code {language}. Keep replies concise and spoken-friendly."
-return chat(prompt, system=sys)
+    sys = f"Respond in language code {language}. Keep replies concise and spoken-friendly."
+    return chat(prompt, system=sys)
