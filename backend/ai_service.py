@@ -148,18 +148,29 @@ Notes:
     r = _model().generate_content(p)
     return _safe_json_parse(r.text if r else "")
 
+def study_plan(subjects, days_left):
+    prompt = f"""
+Create a {days_left}-day study plan.
 
-def study_plan(subjects, exam_date):
-    r = _model().generate_content(
-        f"""
-Create a personalized daily study plan and revision timetable.
+Subjects:
+{subjects}
 
-Subjects: {subjects}
-Exam date: {exam_date}
+Rules:
+- Divide the subjects evenly across {days_left} days.
+- Reserve the last 2 days only for revision and practice tests.
+- Study approximately equal time for each subject.
+- Return ONLY a markdown table.
 
-Use markdown tables where helpful.
+Table format:
+
+| Day | Subjects | Tasks |
+|-----|----------|-------|
+
+Keep every task short and concise.
+Do not add introductions or explanations.
 """
-    )
+
+    r = _model().generate_content(prompt)
     return r.text or ""
 
 
