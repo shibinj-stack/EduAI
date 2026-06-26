@@ -143,17 +143,27 @@ def summarize():
 @app.post("/plan")
 @require_auth
 def plan():
-    d = request.json or {}
-    subjects = d.get("subjects")
-    exam_date = d.get("exam_date")
+    data = request.json or {}
 
-    if not subjects or not exam_date:
-        return jsonify({"error": "subjects and exam_date are required"}), 400
+    subjects = (data.get("subjects") or "").strip()
+    days_left = data.get("days_left")
+
+    if not subjects:
+        return jsonify({"error": "Subjects are required"}), 400
+
+    try:
+        days_left = int(days_left)
+    except (TypeError, ValueError):
+        return jsonify({"error": "Valid days_left is required"}), 400
+
+    if days_left < 1:
+        return jsonify({"error": "days_left must be greater than 0"}), 400
+
+    plan = ai_service.study_plan(subjects, days_left)
 
     return jsonify({
-        "plan": ai_service.study_plan(subjects, exam_date)
+        "plan": plan
     })
-
 
 # ---------- Image Doubt Solver ----------
 @app.post("/solve-image")
